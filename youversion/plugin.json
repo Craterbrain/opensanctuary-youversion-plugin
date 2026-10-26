@@ -2,9 +2,9 @@
   "manifest_version": 1,
   "id": "youversion",
   "name": "YouVersion Bible",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "OpenSanctuary",
-  "description": "Look up a passage in the licensed Bibles YouVersion offers (NIV, NASB, AMP and many more) and add it to the schedule. Passages one chapter at a time; whole Bibles and books are never downloaded, and the text is kept only as long as each publisher allows. OpenSanctuary releases include a YouVersion key; you can use your own instead, kept in your computer's secure storage.",
+  "description": "Look up a passage in the licensed Bibles YouVersion offers (NIV, NASB, AMP and many more) and add it to the schedule. How much at once follows each publisher's terms (the NIV: two chapters or 25 verses, whichever is greater; others up to five chapters); whole Bibles and books are never downloaded, and the text is kept only as long as each publisher allows. OpenSanctuary releases include a YouVersion key; you can use your own instead, kept in your computer's secure storage.",
   "web": {
     "entry": "index.html",
     "sandbox": true
@@ -33,7 +33,7 @@
       "categories": [
         "scriptures"
       ],
-      "reason": "Saves the passage you choose to add (one chapter or part of one) in your Bible library so it can be scheduled and shown. It is stored sealed and deleted when its publisher's time limit runs out. It can replace a saved passage of the same book, chapter, verses and version"
+      "reason": "Saves the passage you choose to add (a chapter or part of one, a few at a time) in your Bible library so it can be scheduled and shown. It is stored sealed and deleted when its publisher's time limit runs out. It can replace a saved passage of the same book, chapter, verses and version"
     },
     {
       "id": "commands.send",

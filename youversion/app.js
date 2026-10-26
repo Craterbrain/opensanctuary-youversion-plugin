@@ -140,6 +140,33 @@
   }
 
   // ---- lookup ----------------------------------------------------------------------------------------
+  /**
+   * Fetches each chapter of `ref` and trims it to the verses asked for. A publisher's limit (Y.limitFor) is
+   * applied as it goes: one that allows "two chapters or 25 verses, whichever is greater" is stopped as soon
+   * as the verses pass 25 beyond two chapters, so nothing past the limit is ever fetched.
+   */
+  async function fetchRef(bible, ref) {
+    var limit = Y.limitFor(bible.organization);
+    if (ref.chapters > 25 || (!limit.verses && ref.chapters > limit.chapters)) {
+      throw new Error('That is ' + ref.chapters + ' chapters. ' + limit.text);
+    }
+    var items = [], total = 0, minKeep = Infinity;
+    for (var i = 0; i < ref.parts.length; i++) {
+      var part = ref.parts[i];
+      var got = await apiFull(Y.passageUrl(bible.id, part.fetchId));
+      var all = Y.htmlToVerses(got.data.content);
+      var verses = Y.sliceVerses(all, part.from, part.to);
+      if (!verses.length) throw new Error(part.label + ' came back empty.');
+      total += verses.length;
+      // Stop as soon as it is past what the publisher allows, before fetching the next chapter.
+      if (!Y.withinLimit(limit, ref.parts.length, total)) throw new Error('That is more than ' + bible.abbreviation + ' allows at once. ' + limit.text);
+      minKeep = Math.min(minKeep, Y.keepSecs(got.cacheSecs));
+      items.push({ part: part, verses: verses, usfm: Y.partUsfm(ref.code, part.chapter, verses, !part.from && !part.to), reference: got.data.reference });
+    }
+    if (!Y.withinLimit(limit, ref.parts.length, total)) throw new Error('That is more than ' + bible.abbreviation + ' allows at once. ' + limit.text);
+    return { items: items, totalVerses: total, keepSecs: minKeep === Infinity ? 0 : minKeep };
+  }
+
   async function lookup() {
     if (busy) return;
     var bible = selectedBible();
@@ -149,25 +176,25 @@
     busy = true;
     show('result', false);
     current = null;
-    setStatus('Looking up ' + ref.label + ' in ' + bible.abbreviation + '…');
+    setStatus('Looking up ' + ref.label + ' in ' + bible.abbreviation + '\u2026');
     try {
-      var got = await apiFull(Y.passageUrl(bible.id, ref.id));
-      var data = got.data;
-      var verses = Y.htmlToVerses(data.content);
-      if (!verses.length) throw new Error('That passage came back empty.');
+      var got = await fetchRef(bible, ref);
       var rights = await copyrightOf(bible);
-      current = { bible: bible, ref: ref, verses: verses, keepSecs: Y.keepSecs(got.cacheSecs), fetchedAt: Date.now() };
-      $('result-title').textContent = (data.reference || ref.label) + ' · ' + bible.abbreviation;
+      current = { bible: bible, ref: ref, items: got.items, keepSecs: got.keepSecs, fetchedAt: Date.now() };
+      $('result-title').textContent = ref.label + ' \u00b7 ' + bible.abbreviation;
       var box = $('verses');
       box.textContent = '';
-      verses.forEach(function (v) {
-        var n = document.createElement('span'); n.className = 'vn'; n.textContent = v.verse_number;
-        box.appendChild(n);
-        box.appendChild(document.createTextNode(v.text + '\n'));
+      got.items.forEach(function (it) {
+        if (got.items.length > 1) box.appendChild(document.createTextNode(it.part.label + '\n'));
+        it.verses.forEach(function (v) {
+          var n = document.createElement('span'); n.className = 'vn'; n.textContent = v.verse_number;
+          box.appendChild(n);
+          box.appendChild(document.createTextNode(v.text + '\n'));
+        });
       });
-      $('attribution').textContent = (rights ? rights + ' · ' : '') + 'Provided by YouVersion' + (bible.link ? ' (' + bible.link + ')' : '') + '.';
+      $('attribution').textContent = (rights ? rights + ' \u00b7 ' : '') + 'Provided by YouVersion' + (bible.link ? ' (' + bible.link + ')' : '') + '.';
       show('result', true);
-      setStatus(verses.length + ' verse' + (verses.length === 1 ? '' : 's') + '. Add it to put it in your library and schedule.', 'ok');
+      setStatus(got.totalVerses + ' verse' + (got.totalVerses === 1 ? '' : 's') + (got.items.length > 1 ? ' in ' + got.items.length + ' chapters' : '') + '. Add it to put it in your library and schedule.', 'ok');
     } catch (e) {
       setStatus(e.message, 'error');
     } finally {
@@ -198,22 +225,27 @@
     try {
       var c = current;
       var ttl = c.keepSecs - Math.floor((Date.now() - c.fetchedAt) / 1000);
-      var verses = c.verses;
+      var items = c.items;
       if (ttl < 5) {
         // The look-up's own lifetime ran out while it sat on screen: ask again.
-        var again = await apiFull(Y.passageUrl(c.bible.id, c.ref.id));
-        verses = Y.htmlToVerses(again.data.content);
-        ttl = Y.keepSecs(again.cacheSecs);
+        var again = await fetchRef(c.bible, c.ref);
+        items = again.items;
+        ttl = again.keepSecs;
       }
-      var stored = await keep(c.bible, c.ref.id, c.ref.name, c.ref.chapter, verses, ttl);
-      var msg = 'Saved ' + c.ref.label + ' (' + c.bible.abbreviation + '), kept ' + describeSecs(ttl) + ' as its publisher allows.';
-      try {
-        await call('sendCommand', { command: { AddToSchedule: { item_type: 'scripture', item_id: stored.ids[0] } } });
-        msg += ' Added to the schedule.';
-      } catch (e) {
-        msg += ' (Not added to the schedule: ' + e.message + ')';
+      var added = 0, scheduled = 0, notes = '';
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        var stored = await keep(c.bible, it.usfm, c.ref.name, it.part.chapter, it.verses, ttl);
+        added++;
+        try {
+          await call('sendCommand', { command: { AddToSchedule: { item_type: 'scripture', item_id: stored.ids[0] } } });
+          scheduled++;
+        } catch (e) {
+          notes = ' (Not added to the schedule: ' + e.message + ')';
+        }
       }
-      setStatus(msg, 'ok');
+      setStatus('Saved ' + c.ref.label + ' (' + c.bible.abbreviation + '), kept ' + describeSecs(ttl) + ' as its publisher allows.' +
+        (scheduled ? ' Added ' + (scheduled === 1 ? 'to' : scheduled + ' items to') + ' the schedule.' : '') + notes, 'ok');
     } catch (e) {
       setStatus('Could not save the passage: ' + e.message, 'error');
     } finally {

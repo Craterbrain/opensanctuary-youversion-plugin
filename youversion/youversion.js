@@ -65,12 +65,15 @@
   }
 
   /**
-   * "John 3:16-18" / "1 Cor 13" / "Ps 23:1-3" -> { book, code, name, chapter, from, to, id, label }.
-   * One chapter at a time: a passage is a chapter or verses inside one. Whole books are refused on
-   * purpose, and so are ranges across chapters. Throws a plain-language Error on anything else.
+   * "John 3:16-18" / "1 Cor 13" / "Ps 23:1-3" / "John 3-4" / "John 3:16-4:2" -> a reference made of one part per
+   * chapter: { book, code, name, label, chapters, parts: [{ chapter, from, to, fetchId, label }] }. `from` / `to`
+   * are verse numbers, 0 meaning "from the start" / "to the end" of that chapter. The API serves one chapter per
+   * call, so a part whose verse range is closed (`John 3:16-18`) is fetched exactly, and one that is open
+   * (the first chapter of `3:16-4:2`) is fetched whole and trimmed (`sliceVerses`). Whole books are refused on
+   * purpose. Throws a plain-language Error on anything else.
    */
   function parseReference(input) {
-    var q = String(input || '').replace(/[–—]/g, '-').trim();
+    var q = String(input || '').replace(/[\u2013\u2014]/g, '-').trim();
     if (!q) throw new Error('Type a reference such as John 3:16 or Psalm 23.');
     // Jude 3, Obadiah 5-7: a book with one chapter is cited by verse.
     var single = /^(.*?)[\s.]+(\d+)\s*(?:-\s*(\d+))?$/.exec(q);
@@ -80,24 +83,69 @@
         q = BOOKS[si][1] + ' 1:' + single[2] + (single[3] ? '-' + single[3] : '');
       }
     }
-    var m = /^(.*?)[\s.]*(\d+)\s*(?:[:.]\s*(\d+)\s*(?:-\s*(\d+)\s*(?:[:.]\s*(\d+))?)?)?$/.exec(q);
+    var m = /^(.*?)[\s.]*(\d+)\s*(?:[:.]\s*(\d+))?\s*(?:-\s*(\d+)\s*(?:[:.]\s*(\d+))?)?$/.exec(q);
     if (!m || !m[1].trim()) {
       if (findBook(q) >= 0) throw new Error('Name a chapter too, for example ' + BOOKS[findBook(q)][1] + ' 1. Whole books are not downloaded.');
-      throw new Error('I couldn’t read “' + q + '” as a reference. Try John 3:16 or Psalm 23.');
+      throw new Error('I couldn\u2019t read \u201c' + q + '\u201d as a reference. Try John 3:16 or Psalm 23.');
     }
     var idx = findBook(m[1]);
-    if (idx === -2) throw new Error('“' + m[1].trim() + '” could be more than one book; spell it out.');
-    if (idx < 0) throw new Error('I don’t know a book called “' + m[1].trim() + '”.');
+    if (idx === -2) throw new Error('\u201c' + m[1].trim() + '\u201d could be more than one book; spell it out.');
+    if (idx < 0) throw new Error('I don\u2019t know a book called \u201c' + m[1].trim() + '\u201d.');
     var book = BOOKS[idx];
-    var chapter = Number(m[2]);
-    if (chapter < 1 || chapter > book[2]) throw new Error(book[1] + ' has ' + book[2] + ' chapter' + (book[2] === 1 ? '' : 's') + '.');
-    var from = m[3] ? Number(m[3]) : 0, to = m[4] ? Number(m[4]) : from;
-    if (m[5]) throw new Error('One chapter at a time: look up each chapter separately.');
-    if (m[3] && from < 1) throw new Error('Verses start at 1.');
-    if (to < from) throw new Error('The verse range runs backwards.');
-    var id = book[0] + '.' + chapter + (from ? '.' + from + (to > from ? '-' + to : '') : '');
-    var label = book[1] + ' ' + chapter + (from ? ':' + from + (to > from ? '-' + to : '') : '');
-    return { book: idx, code: book[0], name: book[1], chapter: chapter, from: from, to: to, id: id, label: label };
+    var c1 = Number(m[2]), v1 = m[3] ? Number(m[3]) : 0;
+    var c2 = c1, v2 = v1;
+    if (m[4]) {
+      if (m[5]) { c2 = Number(m[4]); v2 = Number(m[5]); }          // 3:16-4:2
+      else if (m[3]) { v2 = Number(m[4]); }                         // 3:16-18 (same chapter)
+      else { c2 = Number(m[4]); }                                   // 3-4 (whole chapters)
+    }
+    if (m[5] && !m[3]) throw new Error('I couldn\u2019t read \u201c' + q + '\u201d as a reference.');
+    for (var c of [c1, c2]) {
+      if (c < 1 || c > book[2]) throw new Error(book[1] + ' has ' + book[2] + ' chapter' + (book[2] === 1 ? '' : 's') + '.');
+    }
+    if (c2 < c1) throw new Error('The chapter range runs backwards.');
+    if ((m[3] && v1 < 1) || (m[5] && v2 < 1)) throw new Error('Verses start at 1.');
+    if (c1 === c2 && v1 && v2 && v2 < v1) throw new Error('The verse range runs backwards.');
+    if (c2 - c1 + 1 > 25) throw new Error('That is far too many chapters at once.');
+    var parts = [];
+    for (var c = c1; c <= c2; c++) {
+      var from = c === c1 ? v1 : 0;
+      var to = c === c2 ? (c1 === c2 ? v2 : v2) : 0;
+      if (c === c2 && c !== c1 && !m[5]) to = 0;       // "3-4" is whole chapters
+      var closed = from > 0 && to > 0;
+      var fetchId = book[0] + '.' + c + (closed ? '.' + from + (to > from ? '-' + to : '') : '');
+      var label = book[1] + ' ' + c + (from || to ? ':' + (from || 1) + (to && to !== (from || 1) ? '-' + to : '') : '');
+      parts.push({ chapter: c, from: from, to: to, fetchId: fetchId, label: label });
+    }
+    var label = parts.length === 1 ? parts[0].label : book[1] + ' ' + c1 + (v1 ? ':' + v1 : '') + '\u2013' + c2 + (v2 ? ':' + v2 : '');
+    return { book: idx, code: book[0], name: book[1], chapters: parts.length, parts: parts, label: label };
+  }
+
+  /** The verses of `verses` ([{ verse_number, text }]) that fall in a part's range (0 = unbounded). */
+  function sliceVerses(verses, from, to) {
+    return verses.filter(function (v) { return (!from || v.verse_number >= from) && (!to || v.verse_number <= to); });
+  }
+
+  /** The publisher's own form of what was stored: `JHN.3` (whole chapter) or `JHN.3.16-18`. */
+  function partUsfm(code, chapter, verses, isWhole) {
+    if (isWhole || !verses.length) return code + '.' + chapter;
+    var f = verses[0].verse_number, t = verses[verses.length - 1].verse_number;
+    return code + '.' + chapter + '.' + f + (t > f ? '-' + t : '');
+  }
+
+  // ---- how much a publisher lets be shown at once -----------------------------------------------------
+  // Biblica's license (the NIV family) says "no more than two chapters or twenty-five verses, whichever is
+  // greater". Where a publisher's terms say nothing (Lockman, public domain, ...), a loose five chapters.
+  var BIBLICA_ORG = '05a9aa40-37b6-4e34-b9f1-a443fa4b1fff';
+  var LIMITS = {
+    biblica: { chapters: 2, verses: 25, text: 'The publisher allows up to two chapters or 25 verses at a time, whichever is greater.' },
+    other: { chapters: 5, verses: 0, text: 'Up to 5 chapters at a time.' }
+  };
+  function limitFor(organizationId) { return organizationId === BIBLICA_ORG ? LIMITS.biblica : LIMITS.other; }
+  /** Is a passage of `chapters` chapters and `verses` verses within `limit`? (`verses` may be unknown: null.) */
+  function withinLimit(limit, chapters, verses) {
+    if (chapters <= limit.chapters) return true;
+    return !!limit.verses && verses != null && verses <= limit.verses;
   }
 
   // ---- HTTP ----------------------------------------------------------------------------------
@@ -120,6 +168,7 @@
       title: String(b.localized_title || b.title || '').trim(),
       language: String(b.language_tag || '').trim(),
       copyright: String(b.copyright || '').trim(),
+      organization: typeof b.organization_id === 'string' ? b.organization_id : '',
       link: typeof b.youversion_deep_link === 'string' ? b.youversion_deep_link : ''
     };
   }
@@ -216,7 +265,7 @@
   }
 
   var api = {
-    BOOKS: BOOKS, shortNotice: shortNotice, keepSecs: keepSecs, licensedBlock: licensedBlock, DEFAULT_TTL_SECS: DEFAULT_TTL_SECS, findBook: findBook, parseReference: parseReference, biblesUrl: biblesUrl, bibleUrl: bibleUrl,
+    BOOKS: BOOKS, sliceVerses: sliceVerses, partUsfm: partUsfm, limitFor: limitFor, withinLimit: withinLimit, LIMITS: LIMITS, BIBLICA_ORG: BIBLICA_ORG, shortNotice: shortNotice, keepSecs: keepSecs, licensedBlock: licensedBlock, DEFAULT_TTL_SECS: DEFAULT_TTL_SECS, findBook: findBook, parseReference: parseReference, biblesUrl: biblesUrl, bibleUrl: bibleUrl,
     passageUrl: passageUrl, cleanBible: cleanBible, htmlToVerses: htmlToVerses, previewText: previewText, decode: decode
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
