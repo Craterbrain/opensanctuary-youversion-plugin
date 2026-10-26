@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "id": "youversion",
   "name": "YouVersion Bible",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "OpenSanctuary",
   "description": "Look up a passage in the licensed Bibles YouVersion offers (NIV, NASB, AMP and many more) and add it to the schedule. Passages one chapter at a time; whole Bibles and books are never downloaded, and the text is kept only as long as each publisher allows. You use your own free YouVersion Platform key, kept in your computer's secure storage.",
   "web": {
@@ -19,7 +19,10 @@
       "hosts": [
         "api.youversion.com"
       ],
-      "reason": "The server asks the YouVersion Platform for the list of Bibles and for the passage you look up, using your key, and contacts no other host"
+      "reason": "The server asks the YouVersion Platform for the list of Bibles and for the passage you look up, sending your App Key in its X-YVP-App-Key header, and contacts no other host",
+      "headers": [
+        "X-YVP-App-Key"
+      ]
     },
     {
       "id": "keyring.own",
