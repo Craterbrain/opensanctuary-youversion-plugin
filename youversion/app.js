@@ -27,8 +27,12 @@
 
   /** One YouVersion call: { data, cacheSecs }, `cacheSecs` being how long the publisher lets it be kept. */
   async function apiFull(url) {
-    var res = await call('net.fetch', { url: url, headers: { 'X-YVP-App-Key': key, 'Accept': 'application/json' } });
-    if (res.status === 401) throw new Error('YouVersion did not accept the key. Check it, or change it below.');
+    // Without a key of its own the request goes out bare: OpenSanctuary's server adds the key its release
+    // carries (the plugin never sees that one). A key the church saved here is sent instead.
+    var headers = { 'Accept': 'application/json' };
+    if (key) headers['X-YVP-App-Key'] = key;
+    var res = await call('net.fetch', { url: url, headers: headers });
+    if (res.status === 401) throw new Error(key ? 'YouVersion did not accept your key. Check it, or remove it to use the built-in one.' : 'No YouVersion key is available in this build. Add your own below.');
     if (res.status === 403) throw new Error('Your key is not licensed for that Bible. Accept its license in the YouVersion Platform portal.');
     if (res.status === 404) throw new Error('YouVersion has no such passage in that Bible.');
     if (res.status === 429) throw new Error('YouVersion says to slow down. Try again in a moment.');
@@ -40,20 +44,24 @@
   async function api(url) { return (await apiFull(url)).data; }
 
   // ---- key ----------------------------------------------------------------------------------------
+  // Releases of OpenSanctuary carry a YouVersion key and add it themselves, so nothing is needed here. A church
+  // can still save its own (its own app, its own licenses); it is kept in secure storage and wins.
   async function loadKey() {
     try {
       var r = await call('keyring.get', { account: 'app_key' });
       key = (r && r.secret) || '';
     } catch (e) { key = ''; }
-    show('key-card', !key);
-    show('lookup', !!key);
-    if (key) await loadBibles();
-    else setStatus('Add your YouVersion Platform key to begin.');
+    show('lookup', true);
+    show('key-card', false);
+    show('key-remove', !!key);
+    $('key-change').textContent = key ? 'Change or remove my key' : 'Use my own key';
+    await loadBibles();
+    if (!bibles.length && !key) show('key-card', true);
   }
 
   $('key-save').addEventListener('click', async function () {
     var value = $('key-input').value.trim();
-    if (!value || value.length > 200 || /\s/.test(value)) { setStatus('That doesn’t look like an App Key.', 'error'); return; }
+    if (!value || value.length > 200 || /\s/.test(value)) { setStatus('That doesn\u2019t look like an App Key.', 'error'); return; }
     try {
       await call('keyring.set', { account: 'app_key', secret: value });
       $('key-input').value = '';
@@ -61,12 +69,13 @@
     } catch (e) { setStatus('Could not save the key: ' + e.message, 'error'); }
   });
 
-  $('key-change').addEventListener('click', async function () {
+  $('key-change').addEventListener('click', function () { show('key-card', $('key-card').classList.contains('hidden')); });
+
+  $('key-remove').addEventListener('click', async function () {
     try {
       await call('keyring.delete', { account: 'app_key' });
       key = ''; bibles = []; current = null; show('result', false);
       await loadKey();
-      setStatus('Key removed. Paste a new one to continue.', 'ok');
     } catch (e) { setStatus('Could not remove the key: ' + e.message, 'error'); }
   });
 
@@ -223,7 +232,6 @@
   // (a Bible whose answer says "don't keep" stops being renewed, and the host deletes the passage when its
   // time is up).
   async function renewSoon() {
-    if (!key) return;
     var due = Object.keys(kept).filter(function (id) { return kept[id].expiresAt - Date.now() < 150000; });
     for (var i = 0; i < due.length; i++) {
       var id = due[i], k = kept[id];
@@ -243,7 +251,6 @@
   // ---- looking up again: a schedule that names licensed passages was opened ------------------------------
   var resolving = {};
   OS.on('licensed', async function (data) {
-    if (!key) { setStatus('A schedule needs YouVersion passages. Add your key to show them.', 'error'); return; }
     var requests = (data && data.requests) || [];
     for (var i = 0; i < requests.length; i++) {
       var q = requests[i];

@@ -24,11 +24,12 @@
 
   <!-- No <form> anywhere: a sandboxed frame can't submit one (and doesn't need to). -->
   <div id="key-card" class="card hidden">
-    <h4>Your YouVersion Platform key</h4>
-    <p>Register a free app at <strong>platform.youversion.com</strong>, accept the Bible licenses you want, and paste its App Key here. It is kept in your computer's secure storage and is only sent to YouVersion.</p>
+    <h4>Your own YouVersion Platform key</h4>
+    <p>OpenSanctuary releases already include a key, so you don't need one. To use your own YouVersion app and the licenses you accepted, register at <strong>platform.youversion.com</strong> and paste its App Key here. It is kept in your computer's secure storage and is only sent to YouVersion; it is used instead of the built-in one.</p>
     <div class="form-row">
       <input id="key-input" class="mono" type="password" placeholder="App Key" autocomplete="off">
       <button type="button" id="key-save" class="btn btn-primary">Save key</button>
+      <button type="button" id="key-remove" class="btn hidden">Remove my key</button>
     </div>
   </div>
 
@@ -49,7 +50,7 @@
         <button type="button" id="add" class="btn btn-primary">Add to library &amp; schedule</button>
       </div>
     </div>
-    <div class="form-row"><button type="button" id="key-change" class="btn btn-sm">Change or remove my key</button></div>
+    <div class="form-row"><button type="button" id="key-change" class="btn btn-sm">Use my own key</button></div>
   </div>
 
   <div id="status" class="status"></div>

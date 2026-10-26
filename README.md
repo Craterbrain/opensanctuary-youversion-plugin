@@ -6,9 +6,11 @@ schedule.
 
 ## What it does and does not do
 
-- You use **your own** free YouVersion Platform App Key. Register an app at the Platform portal and accept the
-  license for each Bible you want. The plugin keeps the key in OpenSanctuary's secure storage (`keyring.own`)
-  and sends it only to `api.youversion.com`.
+- **No key needed.** OpenSanctuary releases include a YouVersion key and add it themselves, so the plugin works as soon as it is
+  approved. The plugin and its page never see that key.
+- **Your own key, if you want it.** Register a free app at the Platform portal, accept the licenses you want, and paste its App
+  Key under "Use my own key". It is kept in OpenSanctuary's secure storage (`keyring.own`), sent only to `api.youversion.com`,
+  and used instead of the built-in one.
 - **Passages only.** One chapter at a time, or verses inside one (`John 3:16-18`, `Psalm 23`, `1 Cor 13`,
   `Jude 3`). Whole books, whole Bibles and ranges across chapters are refused on purpose.
 - A lookup shows the passage with the publisher's copyright notice. Nothing is saved until you press
@@ -30,6 +32,8 @@ schedule.
 
 In OpenSanctuary: **Settings > Plugins > Install plugin...**, choose the zip, then review and approve what it
 asks for. It needs an OpenSanctuary release with licensed-passage support (after 0.3.5; see `docs/LICENSED_SCRIPTURE.md` there).
+
+(A build of OpenSanctuary made without the key, such as a local one, asks for your own key.)
 
 Check it first with `os-next --check-plugin youversion`.
 
