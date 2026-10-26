@@ -14,12 +14,17 @@
     #verses .vn { color: var(--os-accent-text); font-weight: var(--os-fw-semibold); margin-right: var(--os-space-2); }
     #attribution { font-size: var(--os-fs-sm); opacity: .85; }
     .hidden { display: none !important; }
+    #added li, #available li { display: flex; align-items: center; gap: var(--os-space-3); }
+    #added .grow, #available .grow { flex: 1 1 auto; min-width: 0; }
+    #available { max-height: 260px; overflow: auto; }
+    .abbr { display: inline-block; min-width: 64px; color: var(--os-accent-text); font-weight: var(--os-fw-semibold); }
+    details summary { cursor: pointer; margin: var(--os-space-3) 0; }
   </style>
 </head>
 <body>
   <div class="page-head">
     <h4>✝ YouVersion Bible</h4>
-    <p>Look up a passage in a licensed Bible and add it to the schedule: a chapter or verses (<em>John 3:16-18</em>, <em>Psalm 23</em>, <em>John 3:16-4:2</em>). How much at once depends on the publisher (the NIV allows two chapters or 25 verses, whichever is greater; others up to five chapters). A whole book is allowed only when it is short enough for that limit (Jude, 3 John, Haggai...); whole Bibles are never downloaded.</p>
+    <p>Add YouVersion translations (the NIV, NASB, AMP and many more) to the Scriptures sidebar. Search them there like any other translation (<em>John 3:16</em>): the results show only the reference, and the text is fetched when you add one to the schedule or drag it there. It is kept only as long as the publisher allows, and is never saved into a schedule file.</p>
   </div>
 
   <!-- No <form> anywhere: a sandboxed frame can't submit one (and doesn't need to). -->
@@ -33,25 +38,40 @@
     </div>
   </div>
 
-  <div id="lookup" class="hidden">
+  <div id="translations" class="hidden">
+    <h4>In your sidebar</h4>
+    <ul id="added" class="os-list"></ul>
+    <h4>Add a translation</h4>
     <div class="form-row">
-      <select id="lang" title="Language"></select>
-      <select id="version" title="Bible"></select>
+      <select id="add-lang" title="Language"></select>
+      <input id="add-q" type="search" placeholder="Search by name or abbreviation" autocomplete="off">
     </div>
-    <div class="form-row">
-      <input id="ref" type="text" placeholder="John 3:16-18, Psalm 23, John 3:16-4:2, Jude" autocomplete="off">
-      <button type="button" id="go" class="btn btn-primary">Look up</button>
-    </div>
-    <div id="result" class="card hidden">
-      <h4 id="result-title"></h4>
-      <div id="verses"></div>
-      <div id="attribution"></div>
+    <ul id="available" class="os-list"></ul>
+  </div>
+
+  <details id="advanced" class="hidden">
+    <summary>Look up a passage here (ranges across chapters, whole short books)</summary>
+    <p class="sub">How much at once depends on the publisher: the NIV allows two chapters or 25 verses, whichever is greater; others up to five chapters. A whole book is allowed only when it is short enough for that limit (Jude, 3 John, Haggai...).</p>
+    <div id="lookup">
       <div class="form-row">
-        <button type="button" id="add" class="btn btn-primary">Add to library &amp; schedule</button>
+        <select id="lang" title="Language"></select>
+        <select id="version" title="Bible"></select>
+      </div>
+      <div class="form-row">
+        <input id="ref" type="text" placeholder="John 3:16-18, Psalm 23, John 3:16-4:2, Jude" autocomplete="off">
+        <button type="button" id="go" class="btn btn-primary">Look up</button>
+      </div>
+      <div id="result" class="card hidden">
+        <h4 id="result-title"></h4>
+        <div id="verses"></div>
+        <div id="attribution"></div>
+        <div class="form-row">
+          <button type="button" id="add" class="btn btn-primary">Add to library &amp; schedule</button>
+        </div>
       </div>
     </div>
-    <div class="form-row"><button type="button" id="key-change" class="btn btn-sm">Use my own key</button></div>
-  </div>
+  </details>
+  <div class="form-row"><button type="button" id="key-change" class="btn btn-sm">Use my own key</button></div>
 
   <div id="status" class="status"></div>
   <script src="__os/icons.js"></script>

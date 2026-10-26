@@ -51,12 +51,15 @@
       var r = await call('keyring.get', { account: 'app_key' });
       key = (r && r.secret) || '';
     } catch (e) { key = ''; }
-    show('lookup', true);
+    show('translations', true);
+    show('advanced', true);
     show('key-card', false);
     show('key-remove', !!key);
     $('key-change').textContent = key ? 'Change or remove my key' : 'Use my own key';
     await loadBibles();
     if (!bibles.length && !key) show('key-card', true);
+    await loadAdded();
+    renderTranslations();
   }
 
   $('key-save').addEventListener('click', async function () {
@@ -99,6 +102,9 @@
         var o = document.createElement('option'); o.value = l; o.textContent = languageName(l); sel.appendChild(o);
       });
       fillVersions();
+      var addSel = $('add-lang');
+      addSel.textContent = '';
+      Array.prototype.forEach.call(sel.options, function (o) { var c = document.createElement('option'); c.value = o.value; c.textContent = o.textContent; addSel.appendChild(c); });
       setStatus(bibles.length ? bibles.length + ' Bibles available to your key.' : 'Your key has no Bibles yet. Accept licenses in the YouVersion Platform portal.', bibles.length ? '' : 'error');
     } catch (e) {
       setStatus(e.message, 'error');
@@ -138,6 +144,76 @@
     }
     return copyrights[bible.id];
   }
+
+  // ---- translations in the sidebar ----------------------------------------------------------------------
+  // The chosen translations are saved with OpenSanctuary (library.setRemoteBibles): metadata only. The Scriptures
+  // sidebar lists them tagged "YouVersion"; a search there finds references only, and the text is fetched (by the
+  // 'licensed' handler below) when a result is added to the schedule or dragged there.
+  var added = [];            // what the host has saved for this plugin
+
+  async function loadAdded() {
+    try { added = ((await call('library.getRemoteBibles', {})).bibles) || []; } catch (e) { added = []; }
+  }
+
+  async function saveAdded(message) {
+    try {
+      await call('library.setRemoteBibles', { bibles: added });
+      renderTranslations();
+      if (message) setStatus(message, 'ok');
+    } catch (e) {
+      setStatus('Could not save the translations: ' + e.message, 'error');
+      await loadAdded();
+      renderTranslations();
+    }
+  }
+
+  async function addTranslation(b) {
+    if (added.some(function (x) { return x.bible_id === b.id; })) return;
+    var limit = Y.limitFor(b.organization);
+    await copyrightOf(b);
+    added.push({
+      bible_id: b.id, abbreviation: b.abbreviation, title: b.title, language: b.language, tag: 'YouVersion',
+      copyright: copyrights[b.id] || '', link: b.link || '', organization: b.organization || '',
+      max_chapters: limit.chapters, max_verses: limit.verses
+    });
+    await saveAdded(b.abbreviation + ' is in your Scriptures sidebar. Search it there, e.g. John 3:16.');
+  }
+
+  async function removeTranslation(id) {
+    added = added.filter(function (x) { return x.bible_id !== id; });
+    await saveAdded('Removed from your sidebar.');
+  }
+
+  function row(list, b, label, onClick, disabled) {
+    var li = document.createElement('li');
+    var abbr = document.createElement('span'); abbr.className = 'abbr'; abbr.textContent = b.abbreviation;
+    var name = document.createElement('span'); name.className = 'grow'; name.textContent = b.title;
+    var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn-sm'; btn.textContent = label; btn.disabled = !!disabled;
+    btn.addEventListener('click', onClick);
+    li.appendChild(abbr); li.appendChild(name); li.appendChild(btn);
+    list.appendChild(li);
+  }
+
+  function renderTranslations() {
+    var addedList = $('added');
+    addedList.textContent = '';
+    if (!added.length) {
+      var empty = document.createElement('li'); empty.textContent = 'None yet. Add one below.'; addedList.appendChild(empty);
+    }
+    added.forEach(function (b) { row(addedList, b, 'Remove', function () { removeTranslation(b.bible_id); }); });
+    var lang = $('add-lang').value;
+    var q = $('add-q').value.trim().toLowerCase();
+    var list = $('available');
+    list.textContent = '';
+    bibles.filter(function (b) {
+      return (!lang || (b.language || '?') === lang) && (!q || (b.abbreviation + ' ' + b.title).toLowerCase().indexOf(q) !== -1);
+    }).sort(function (a, b) { return a.abbreviation < b.abbreviation ? -1 : 1; }).slice(0, 80).forEach(function (b) {
+      var already = added.some(function (x) { return x.bible_id === b.id; });
+      row(list, b, already ? 'Added' : 'Add', function () { addTranslation(b); }, already);
+    });
+  }
+  $('add-q').addEventListener('input', renderTranslations);
+  $('add-lang').addEventListener('change', renderTranslations);
 
   // ---- lookup ----------------------------------------------------------------------------------------
   /**
