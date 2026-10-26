@@ -147,9 +147,8 @@
    */
   async function fetchRef(bible, ref) {
     var limit = Y.limitFor(bible.organization);
-    if (ref.chapters > 25 || (!limit.verses && ref.chapters > limit.chapters)) {
-      throw new Error('That is ' + ref.chapters + ' chapters. ' + limit.text);
-    }
+    var refusal = Y.tooLong(limit, ref.chapters);
+    if (refusal) throw new Error(refusal);
     var items = [], total = 0, minKeep = Infinity;
     for (var i = 0; i < ref.parts.length; i++) {
       var part = ref.parts[i];

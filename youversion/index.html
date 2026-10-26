@@ -19,7 +19,7 @@
 <body>
   <div class="page-head">
     <h4>✝ YouVersion Bible</h4>
-    <p>Look up a passage in a licensed Bible and add it to the schedule: a chapter or verses (<em>John 3:16-18</em>, <em>Psalm 23</em>, <em>John 3:16-4:2</em>). How much at once depends on the publisher (the NIV allows two chapters or 25 verses, whichever is greater; others up to five chapters). Whole Bibles and books are never downloaded.</p>
+    <p>Look up a passage in a licensed Bible and add it to the schedule: a chapter or verses (<em>John 3:16-18</em>, <em>Psalm 23</em>, <em>John 3:16-4:2</em>). How much at once depends on the publisher (the NIV allows two chapters or 25 verses, whichever is greater; others up to five chapters). A whole book is allowed only when it is short enough for that limit (Jude, 3 John, Haggai...); whole Bibles are never downloaded.</p>
   </div>
 
   <!-- No <form> anywhere: a sandboxed frame can't submit one (and doesn't need to). -->
@@ -39,7 +39,7 @@
       <select id="version" title="Bible"></select>
     </div>
     <div class="form-row">
-      <input id="ref" type="text" placeholder="John 3:16-18, Psalm 23, John 3:16-4:2" autocomplete="off">
+      <input id="ref" type="text" placeholder="John 3:16-18, Psalm 23, John 3:16-4:2, Jude" autocomplete="off">
       <button type="button" id="go" class="btn btn-primary">Look up</button>
     </div>
     <div id="result" class="card hidden">

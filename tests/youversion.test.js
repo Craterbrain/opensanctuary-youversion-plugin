@@ -46,15 +46,31 @@ describe("references", () => {
     expect(ids("Jude 1")).toEqual(["JUD.1"]);
   });
   test("refuses what it should: whole books, backwards ranges, nonsense", () => {
-    expect(() => Y.parseReference("John")).toThrow(/Whole books are not downloaded/);
     expect(() => Y.parseReference("John 3:18-16")).toThrow(/backwards/);
     expect(() => Y.parseReference("John 4-3")).toThrow(/backwards/);
     expect(() => Y.parseReference("Gen 2:3-2:1")).toThrow(/backwards/);
-    expect(() => Y.parseReference("Gen 1-30")).toThrow(/too many chapters/);
     expect(() => Y.parseReference("Psalms 151")).toThrow(/150 chapters/);
     expect(() => Y.parseReference("jo 3")).toThrow(/more than one book/);
     expect(() => Y.parseReference("Hezekiah 1")).toThrow(/don\u2019t know a book/);
     expect(() => Y.parseReference("")).toThrow();
+  });
+  test("a book named on its own is the whole book, to be checked against the publisher's limit", () => {
+    const jude = Y.parseReference("Jude");
+    expect(jude).toMatchObject({ whole: true, chapters: 1, label: "Jude 1" });
+    expect(jude.parts.map((p) => p.fetchId)).toEqual(["JUD.1"]);
+    const haggai = Y.parseReference("haggai");
+    expect(haggai.parts.map((p) => p.fetchId)).toEqual(["HAG.1", "HAG.2"]);
+    expect(haggai.label).toBe("Haggai 1\u20132");
+    expect(Y.parseReference("Psalms").chapters).toBe(150);
+    expect(Y.parseReference("Gen 1-30").chapters).toBe(30);
+    const biblica = Y.limitFor(Y.BIBLICA_ORG), other = Y.limitFor("x");
+    expect(Y.tooLong(biblica, 1)).toBe("");
+    expect(Y.tooLong(biblica, 2)).toBe("");
+    expect(Y.tooLong(biblica, 21)).toBe("");          // John: the verses decide, as chapters arrive
+    expect(Y.tooLong(biblica, 150)).toContain("150 chapters");
+    expect(Y.tooLong(other, 5)).toBe("");
+    expect(Y.tooLong(other, 6)).toContain("Up to 5 chapters");
+    expect(Y.tooLong(other, 150)).toContain("150 chapters");
   });
   test("book table matches YouVersion's order and sizes", () => {
     expect(Y.BOOKS.length).toBe(66);

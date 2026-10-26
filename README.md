@@ -11,11 +11,13 @@ schedule.
 - **Your own key, if you want it.** Register a free app at the Platform portal, accept the licenses you want, and paste its App
   Key under "Use my own key". It is kept in OpenSanctuary's secure storage (`keyring.own`), sent only to `api.youversion.com`,
   and used instead of the built-in one.
-- **Passages only, within each publisher's limit.** Chapters or verses (`John 3:16-18`, `Psalm 23`, `Jude 3`), and ranges across
+- **Passages, and short books, within each publisher's limit.** Chapters or verses (`John 3:16-18`, `Psalm 23`, `Jude 3`), and ranges across
   chapters (`John 3:16-4:2`, `Psalm 23-25`; one call per chapter, trimmed to the verses asked for). The **NIV** family (Biblica)
   allows "no more than two chapters or twenty-five verses, whichever is greater"; for any other publisher, whose terms set no limit
   (Lockman's NASB and AMP, public domain), the plugin allows a loose five chapters. A lookup stops fetching as soon as it passes the
-  limit. Whole books and whole Bibles are refused on purpose.
+  limit. **A book named on its own is the whole book**, allowed only when it fits that limit: for the NIV, Obadiah, Philemon, 2 John, 3 John, Jude
+  (one chapter) and Haggai (two); for other publishers, books of up to five chapters (Ruth, Joel, Jonah, Philippians, Titus...). A longer book,
+  or a whole Bible, is refused before anything is fetched.
 - A lookup shows the passage with the publisher's copyright notice. Nothing is saved until you press
   **Add to library & schedule**, which stores that one passage in your Bible library and puts it on the schedule.
 - **Kept only as long as the publisher allows.** Every passage is stored with the lifetime YouVersion's `Cache-Control` gives

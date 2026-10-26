@@ -85,7 +85,11 @@
     }
     var m = /^(.*?)[\s.]*(\d+)\s*(?:[:.]\s*(\d+))?\s*(?:-\s*(\d+)\s*(?:[:.]\s*(\d+))?)?$/.exec(q);
     if (!m || !m[1].trim()) {
-      if (findBook(q) >= 0) throw new Error('Name a chapter too, for example ' + BOOKS[findBook(q)][1] + ' 1. Whole books are not downloaded.');
+      // A bare book name is the whole book: fine when it is short enough for the publisher's limit (Jude, 3 John,
+      // Haggai...), which the caller checks with `tooLong` before fetching anything.
+      var whole = findBook(q);
+      if (whole >= 0) return wholeBook(whole);
+      if (whole === -2) throw new Error('\u201c' + q + '\u201d could be more than one book; spell it out.');
       throw new Error('I couldn\u2019t read \u201c' + q + '\u201d as a reference. Try John 3:16 or Psalm 23.');
     }
     var idx = findBook(m[1]);
@@ -106,7 +110,6 @@
     if (c2 < c1) throw new Error('The chapter range runs backwards.');
     if ((m[3] && v1 < 1) || (m[5] && v2 < 1)) throw new Error('Verses start at 1.');
     if (c1 === c2 && v1 && v2 && v2 < v1) throw new Error('The verse range runs backwards.');
-    if (c2 - c1 + 1 > 25) throw new Error('That is far too many chapters at once.');
     var parts = [];
     for (var c = c1; c <= c2; c++) {
       var from = c === c1 ? v1 : 0;
@@ -119,6 +122,14 @@
     }
     var label = parts.length === 1 ? parts[0].label : book[1] + ' ' + c1 + (v1 ? ':' + v1 : '') + '\u2013' + c2 + (v2 ? ':' + v2 : '');
     return { book: idx, code: book[0], name: book[1], chapters: parts.length, parts: parts, label: label };
+  }
+
+  /** A book named on its own: every chapter, whole. */
+  function wholeBook(idx) {
+    var book = BOOKS[idx], parts = [];
+    for (var c = 1; c <= book[2]; c++) parts.push({ chapter: c, from: 0, to: 0, fetchId: book[0] + '.' + c, label: book[1] + ' ' + c });
+    return { book: idx, code: book[0], name: book[1], chapters: parts.length, parts: parts, whole: true,
+             label: book[1] + (parts.length > 1 ? ' 1\u2013' + book[2] : ' 1') };
   }
 
   /** The verses of `verses` ([{ verse_number, text }]) that fall in a part's range (0 = unbounded). */
@@ -141,6 +152,16 @@
     biblica: { chapters: 2, verses: 25, text: 'The publisher allows up to two chapters or 25 verses at a time, whichever is greater.' },
     other: { chapters: 5, verses: 0, text: 'Up to 5 chapters at a time.' }
   };
+  /**
+   * A reason to refuse before fetching anything, or ''. A publisher that counts only chapters is refused
+   * at once; one that also allows 25 verses (Biblica) is let through up to 25 chapters, because the verses
+   * are only known as the chapters arrive (`withinLimit` then stops it).
+   */
+  function tooLong(limit, chapters) {
+    if (chapters > 25 || (!limit.verses && chapters > limit.chapters)) return 'That is ' + chapters + ' chapters. ' + limit.text;
+    return '';
+  }
+
   function limitFor(organizationId) { return organizationId === BIBLICA_ORG ? LIMITS.biblica : LIMITS.other; }
   /** Is a passage of `chapters` chapters and `verses` verses within `limit`? (`verses` may be unknown: null.) */
   function withinLimit(limit, chapters, verses) {
@@ -265,7 +286,7 @@
   }
 
   var api = {
-    BOOKS: BOOKS, sliceVerses: sliceVerses, partUsfm: partUsfm, limitFor: limitFor, withinLimit: withinLimit, LIMITS: LIMITS, BIBLICA_ORG: BIBLICA_ORG, shortNotice: shortNotice, keepSecs: keepSecs, licensedBlock: licensedBlock, DEFAULT_TTL_SECS: DEFAULT_TTL_SECS, findBook: findBook, parseReference: parseReference, biblesUrl: biblesUrl, bibleUrl: bibleUrl,
+    BOOKS: BOOKS, sliceVerses: sliceVerses, tooLong: tooLong, partUsfm: partUsfm, limitFor: limitFor, withinLimit: withinLimit, LIMITS: LIMITS, BIBLICA_ORG: BIBLICA_ORG, shortNotice: shortNotice, keepSecs: keepSecs, licensedBlock: licensedBlock, DEFAULT_TTL_SECS: DEFAULT_TTL_SECS, findBook: findBook, parseReference: parseReference, biblesUrl: biblesUrl, bibleUrl: bibleUrl,
     passageUrl: passageUrl, cleanBible: cleanBible, htmlToVerses: htmlToVerses, previewText: previewText, decode: decode
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
