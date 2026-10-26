@@ -13,6 +13,13 @@ schedule.
   `Jude 3`). Whole books, whole Bibles and ranges across chapters are refused on purpose.
 - A lookup shows the passage with the publisher's copyright notice. Nothing is saved until you press
   **Add to library & schedule**, which stores that one passage in your Bible library and puts it on the schedule.
+- **Kept only as long as the publisher allows.** Every passage is stored with the lifetime YouVersion's `Cache-Control` gives
+  (the NIV: one hour). OpenSanctuary seals it on disk, deletes it when the time is up (and at every start-up), and leaves it
+  out of saved and exported schedules, which carry only the reference. While the app is open the plugin asks again before the
+  time runs out and renews it (the text stays as it is).
+- **Opening a schedule looks the passages up again.** A saved or exported schedule that holds NIV passages shows "fetching the
+  text…" and the plugin fills them in by itself. It needs this plugin installed and approved, with the key saved.
+- Every slide carries the publisher's short notice (`NIV · © Biblica, Inc`) as its last line.
 - The list of Bibles and each copyright notice are kept in memory for the visit only.
 
 ## Install
@@ -22,7 +29,7 @@ schedule.
 ```
 
 In OpenSanctuary: **Settings > Plugins > Install plugin...**, choose the zip, then review and approve what it
-asks for. It needs OpenSanctuary with the `X-YVP-App-Key` header allowed for plugins (the release after 0.3.5).
+asks for. It needs an OpenSanctuary release with licensed-passage support (after 0.3.5; see `docs/LICENSED_SCRIPTURE.md` there).
 
 Check it first with `os-next --check-plugin youversion`.
 
