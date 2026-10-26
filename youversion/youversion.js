@@ -187,8 +187,36 @@
     return verses.map(function (v) { return v.verse_number + ' ' + v.text.replace(/\n/g, ' '); }).join('  ');
   }
 
+  // ---- licensing ---------------------------------------------------------------------------------
+
+  /** Used when the publisher's response says nothing about how long it may be kept. */
+  var DEFAULT_TTL_SECS = 3600;
+
+  /**
+   * The short notice printed on every slide: the version and the rights holder, "NIV \u00b7 \u00a9 Biblica, Inc.".
+   * Taken from the publisher's own copyright text; the version name alone if it can't be read.
+   */
+  function shortNotice(abbreviation, copyright) {
+    var name = String(abbreviation || '').trim();
+    var m = /(?:\u00a9|\(c\)|copyright)\s*(?:\u00a9\s*)?[\d,\s\-\u2013]*\s*(?:by\s+)?([^.\u00ae\u2122\n;]{2,60})/i.exec(String(copyright || ''));
+    var holder = m ? m[1].replace(/\s+/g, ' ').trim().replace(/[,\s]+$/, '') : '';
+    if (/^public domain/i.test(String(copyright || '').trim())) holder = 'Public Domain';
+    var tag = holder ? name + ' \u00b7 ' + (holder === 'Public Domain' ? holder : '\u00a9 ' + holder) : name;
+    return tag.length > 60 ? tag.slice(0, 59) + '\u2026' : tag;
+  }
+
+  /** Seconds a passage may still be kept, from the host's `cacheSecs` (null = the response didn't say). */
+  function keepSecs(cacheSecs) {
+    return typeof cacheSecs === 'number' ? Math.max(0, Math.floor(cacheSecs)) : DEFAULT_TTL_SECS;
+  }
+
+  /** The `licensed` block that makes the host seal a passage and expire it (see OpenSanctuary's storage/db/licensed.rs). */
+  function licensedBlock(bible, usfm, tag, ttlSecs) {
+    return { bible_id: bible.id, usfm: usfm, tag: tag, copyright: bible.copyright || '', link: bible.link || '', ttl_secs: ttlSecs };
+  }
+
   var api = {
-    BOOKS: BOOKS, findBook: findBook, parseReference: parseReference, biblesUrl: biblesUrl, bibleUrl: bibleUrl,
+    BOOKS: BOOKS, shortNotice: shortNotice, keepSecs: keepSecs, licensedBlock: licensedBlock, DEFAULT_TTL_SECS: DEFAULT_TTL_SECS, findBook: findBook, parseReference: parseReference, biblesUrl: biblesUrl, bibleUrl: bibleUrl,
     passageUrl: passageUrl, cleanBible: cleanBible, htmlToVerses: htmlToVerses, previewText: previewText, decode: decode
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

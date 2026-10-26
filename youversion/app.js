@@ -2,7 +2,10 @@
 // the host fetches from api.youversion.com for it (net.fetch, with the user's own App Key), saves the
 // passage the user chose (library.addScriptures) and runs the schedule command it may have been granted.
 // Passages only: one chapter at a time, nothing is downloaded in bulk and nothing is kept until the user
-// presses "Add". See docs/PLUGIN_PERMISSIONS.md in OpenSanctuary.
+// presses "Add". Licensed text is kept only as long as the publisher's own Cache-Control allows: the host
+// seals it, expires it, and drops it from every saved or exported schedule; this page renews it while the
+// app is open, and looks it up again when a schedule that names it is opened. See OpenSanctuary's
+// docs/LICENSED_SCRIPTURE.md.
 (function () {
   'use strict';
 
@@ -22,15 +25,19 @@
   }
   function show(id, on) { $(id).classList.toggle('hidden', !on); }
 
-  async function api(url) {
+  /** One YouVersion call: { data, cacheSecs }, `cacheSecs` being how long the publisher lets it be kept. */
+  async function apiFull(url) {
     var res = await call('net.fetch', { url: url, headers: { 'X-YVP-App-Key': key, 'Accept': 'application/json' } });
     if (res.status === 401) throw new Error('YouVersion did not accept the key. Check it, or change it below.');
     if (res.status === 403) throw new Error('Your key is not licensed for that Bible. Accept its license in the YouVersion Platform portal.');
     if (res.status === 404) throw new Error('YouVersion has no such passage in that Bible.');
     if (res.status === 429) throw new Error('YouVersion says to slow down. Try again in a moment.');
     if (res.status < 200 || res.status >= 300) throw new Error('YouVersion answered ' + res.status + '.');
-    try { return JSON.parse(res.body); } catch (e) { throw new Error('YouVersion sent something unreadable.'); }
+    var data;
+    try { data = JSON.parse(res.body); } catch (e) { throw new Error('YouVersion sent something unreadable.'); }
+    return { data: data, cacheSecs: res.cacheSecs };
   }
+  async function api(url) { return (await apiFull(url)).data; }
 
   // ---- key ----------------------------------------------------------------------------------------
   async function loadKey() {
@@ -135,11 +142,12 @@
     current = null;
     setStatus('Looking up ' + ref.label + ' in ' + bible.abbreviation + '…');
     try {
-      var data = await api(Y.passageUrl(bible.id, ref.id));
+      var got = await apiFull(Y.passageUrl(bible.id, ref.id));
+      var data = got.data;
       var verses = Y.htmlToVerses(data.content);
       if (!verses.length) throw new Error('That passage came back empty.');
       var rights = await copyrightOf(bible);
-      current = { bible: bible, ref: ref, verses: verses };
+      current = { bible: bible, ref: ref, verses: verses, keepSecs: Y.keepSecs(got.cacheSecs), fetchedAt: Date.now() };
       $('result-title').textContent = (data.reference || ref.label) + ' · ' + bible.abbreviation;
       var box = $('verses');
       box.textContent = '';
@@ -160,13 +168,36 @@
   $('go').addEventListener('click', lookup);
   $('ref').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') lookup(); });
 
+  // ---- keeping a passage ---------------------------------------------------------------------------
+  var kept = {};            // library id -> { expiresAt, bible, usfm }  (this visit only)
+
+  function info(bible) { return { id: bible.id, copyright: copyrights[bible.id] || '', link: bible.link }; }
+
+  /** Saves a passage the way the publisher allows: sealed and expiring (ttlSecs), never longer. */
+  async function keep(bible, usfm, book, chapter, verses, ttlSecs) {
+    if (ttlSecs <= 0) throw new Error('YouVersion does not allow ' + bible.abbreviation + ' text to be kept, so it can\u2019t be added.');
+    await copyrightOf(bible);
+    var licensed = Y.licensedBlock(info(bible), usfm, Y.shortNotice(bible.abbreviation, copyrights[bible.id]), ttlSecs);
+    var stored = await call('library.addScriptures', { items: [{ book: book, chapter: chapter, version: bible.abbreviation, verses: verses, licensed: licensed }] });
+    kept[stored.ids[0]] = { expiresAt: (stored.expiresAtMs && stored.expiresAtMs[0]) || Date.now() + ttlSecs * 1000, bible: bible, usfm: usfm };
+    return stored;
+  }
+
   $('add').addEventListener('click', async function () {
     if (!current || busy) return;
     busy = true;
     try {
-      var item = { book: current.ref.name, chapter: current.ref.chapter, version: current.bible.abbreviation, verses: current.verses };
-      var stored = await call('library.addScriptures', { items: [item] });
-      var msg = 'Saved ' + current.ref.label + ' (' + current.bible.abbreviation + ').';
+      var c = current;
+      var ttl = c.keepSecs - Math.floor((Date.now() - c.fetchedAt) / 1000);
+      var verses = c.verses;
+      if (ttl < 5) {
+        // The look-up's own lifetime ran out while it sat on screen: ask again.
+        var again = await apiFull(Y.passageUrl(c.bible.id, c.ref.id));
+        verses = Y.htmlToVerses(again.data.content);
+        ttl = Y.keepSecs(again.cacheSecs);
+      }
+      var stored = await keep(c.bible, c.ref.id, c.ref.name, c.ref.chapter, verses, ttl);
+      var msg = 'Saved ' + c.ref.label + ' (' + c.bible.abbreviation + '), kept ' + describeSecs(ttl) + ' as its publisher allows.';
       try {
         await call('sendCommand', { command: { AddToSchedule: { item_type: 'scripture', item_id: stored.ids[0] } } });
         msg += ' Added to the schedule.';
@@ -178,6 +209,62 @@
       setStatus('Could not save the passage: ' + e.message, 'error');
     } finally {
       busy = false;
+    }
+  });
+
+  function describeSecs(s) {
+    if (s >= 86400) return 'for ' + Math.round(s / 86400) + ' day' + (s >= 172800 ? 's' : '');
+    if (s >= 3600) return 'for ' + Math.round(s / 3600) + ' hour' + (s >= 5400 ? 's' : '');
+    return 'for ' + Math.max(1, Math.round(s / 60)) + ' minute' + (s >= 90 ? 's' : '');
+  }
+
+  // ---- renewing: ask the publisher again before the time is up ------------------------------------------
+  // The text stays exactly as it is; the publisher's fresh answer only tells how much longer it may be kept
+  // (a Bible whose answer says "don't keep" stops being renewed, and the host deletes the passage when its
+  // time is up).
+  async function renewSoon() {
+    if (!key) return;
+    var due = Object.keys(kept).filter(function (id) { return kept[id].expiresAt - Date.now() < 150000; });
+    for (var i = 0; i < due.length; i++) {
+      var id = due[i], k = kept[id];
+      try {
+        var res = await apiFull(Y.passageUrl(k.bible.id, k.usfm));   // the answer's body is thrown away
+        var secs = Y.keepSecs(res.cacheSecs);
+        if (secs <= 0) { delete kept[id]; continue; }
+        var r = await call('library.refreshLicensed', { ids: [id], ttlSecs: secs });
+        if (r.refreshed) k.expiresAt = r.expiresAtMs; else delete kept[id];   // the host no longer has it
+      } catch (e) {
+        if (k.expiresAt < Date.now()) delete kept[id];
+      }
+    }
+  }
+  setInterval(renewSoon, 30000);
+
+  // ---- looking up again: a schedule that names licensed passages was opened ------------------------------
+  var resolving = {};
+  OS.on('licensed', async function (data) {
+    if (!key) { setStatus('A schedule needs YouVersion passages. Add your key to show them.', 'error'); return; }
+    var requests = (data && data.requests) || [];
+    for (var i = 0; i < requests.length; i++) {
+      var q = requests[i];
+      var slot = q.item_id + '|' + q.usfm;
+      if (resolving[slot] || q.source !== 'youversion') continue;
+      resolving[slot] = true;
+      try {
+        if (!bibles.length) await loadBibles();
+        var bible = bibles.filter(function (b) { return b.id === q.bible_id; })[0];
+        if (!bible) throw new Error('your key can\u2019t use that Bible (' + q.version + ') any more');
+        var got = await apiFull(Y.passageUrl(bible.id, q.usfm));
+        var verses = Y.htmlToVerses(got.data.content);
+        if (!verses.length) throw new Error('the passage came back empty');
+        var stored = await keep(bible, q.usfm, q.book, q.chapter, verses, Y.keepSecs(got.cacheSecs));
+        await call('sendCommand', { command: { ResolveLicensed: { item_id: q.item_id, passage_id: stored.ids[0] } } });
+        setStatus('Looked up ' + (got.data.reference || q.usfm) + ' (' + bible.abbreviation + ') for the schedule.', 'ok');
+      } catch (e) {
+        setStatus('Could not look up ' + q.usfm + ': ' + e.message, 'error');
+      } finally {
+        delete resolving[slot];
+      }
     }
   });
 

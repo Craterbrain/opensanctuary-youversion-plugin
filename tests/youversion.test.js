@@ -80,3 +80,26 @@ describe("passage html", () => {
     expect(Y.previewText([{ verse_number: 1, text: "a\nb" }, { verse_number: 2, text: "c" }])).toBe("1 a b  2 c");
   });
 });
+
+describe("licensing helpers", () => {
+  test("the notice is the version and the rights holder, from the publisher's own text", () => {
+    expect(Y.shortNotice("NIV", "The Holy Bible, New International Version® NIV® Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.® Used by Permission."))
+      .toBe("NIV · © Biblica, Inc");
+    expect(Y.shortNotice("NASB2020", "New American Standard Bible® Copyright © 1960, 1971, 1977, 1995, 2020 by The Lockman Foundation. All rights reserved"))
+      .toBe("NASB2020 · © The Lockman Foundation");
+    expect(Y.shortNotice("BSB", "Public Domain")).toBe("BSB · Public Domain");
+    expect(Y.shortNotice("X", "")).toBe("X");
+    expect(Y.shortNotice("X", "something unreadable").length).toBeLessThan(61);
+  });
+  test("how long a passage may be kept comes from the publisher's answer", () => {
+    expect(Y.keepSecs(3600)).toBe(3600);
+    expect(Y.keepSecs(0)).toBe(0);            // do not keep
+    expect(Y.keepSecs(-5)).toBe(0);
+    expect(Y.keepSecs(null)).toBe(Y.DEFAULT_TTL_SECS);
+    expect(Y.keepSecs(undefined)).toBe(Y.DEFAULT_TTL_SECS);
+  });
+  test("the licensed block names the Bible, the reference, the notice and the time limit", () => {
+    expect(Y.licensedBlock({ id: 111, copyright: "c", link: "https://www.bible.com/versions/111" }, "JHN.3.16-18", "NIV", 3600))
+      .toEqual({ bible_id: 111, usfm: "JHN.3.16-18", tag: "NIV", copyright: "c", link: "https://www.bible.com/versions/111", ttl_secs: 3600 });
+  });
+});
