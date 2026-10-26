@@ -1,0 +1,53 @@
+{
+  "manifest_version": 1,
+  "id": "youversion",
+  "name": "YouVersion Bible",
+  "version": "0.1.0",
+  "publisher": "OpenSanctuary",
+  "description": "Look up a passage in the licensed Bibles YouVersion offers (NIV, NASB, AMP and many more) and add it to the schedule. Passages one chapter at a time; whole Bibles and books are never downloaded. You use your own free YouVersion Platform key, kept in your computer's secure storage.",
+  "web": {
+    "entry": "index.html",
+    "sandbox": true
+  },
+  "permissions": [
+    {
+      "id": "ui.panel",
+      "reason": "Appears as a panel in the Bible library"
+    },
+    {
+      "id": "network.outbound",
+      "hosts": [
+        "api.youversion.com"
+      ],
+      "reason": "The server asks the YouVersion Platform for the list of Bibles and for the passage you look up, using your key, and contacts no other host"
+    },
+    {
+      "id": "keyring.own",
+      "reason": "Keeps your YouVersion Platform App Key in secure storage that only this plugin can read"
+    },
+    {
+      "id": "library.write",
+      "categories": [
+        "scriptures"
+      ],
+      "reason": "Saves the passage you choose to add (one chapter or part of one) in your Bible library so it can be scheduled and shown. It can replace a saved passage of the same book, chapter, verses and version"
+    },
+    {
+      "id": "commands.send",
+      "commands": [
+        "AddToSchedule"
+      ],
+      "optional": true,
+      "reason": "Adds the passage you chose to the schedule"
+    }
+  ],
+  "ui": {
+    "placements": [
+      {
+        "slot": "library-source",
+        "tab": "scriptures",
+        "label": "✝ YouVersion"
+      }
+    ]
+  }
+}

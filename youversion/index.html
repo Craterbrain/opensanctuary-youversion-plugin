@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>YouVersion Bible</title>
+  <link rel="stylesheet" href="__os/theme.css">
+  <style>
+    html, body { height: 100%; }
+    body { display: flex; flex-direction: column; padding: var(--os-space-6); gap: var(--os-space-3); overflow: auto; }
+    .page-head h4 { margin-bottom: var(--os-space-2); }
+    .page-head p { margin: 0; font-size: var(--os-fs-sm); }
+    .form-row select { flex: 0 0 auto; max-width: 260px; }
+    #verses { white-space: pre-wrap; line-height: 1.5; max-height: 220px; overflow: auto; margin: var(--os-space-3) 0; }
+    #verses .vn { color: var(--os-accent-text); font-weight: var(--os-fw-semibold); margin-right: var(--os-space-2); }
+    #attribution { font-size: var(--os-fs-sm); opacity: .85; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="page-head">
+    <h4>✝ YouVersion Bible</h4>
+    <p>Look up a passage (one chapter, or verses within one) in a licensed Bible and add it to the schedule. Whole Bibles and books are never downloaded.</p>
+  </div>
+
+  <!-- No <form> anywhere: a sandboxed frame can't submit one (and doesn't need to). -->
+  <div id="key-card" class="card hidden">
+    <h4>Your YouVersion Platform key</h4>
+    <p>Register a free app at <strong>platform.youversion.com</strong>, accept the Bible licenses you want, and paste its App Key here. It is kept in your computer's secure storage and is only sent to YouVersion.</p>
+    <div class="form-row">
+      <input id="key-input" class="mono" type="password" placeholder="App Key" autocomplete="off">
+      <button type="button" id="key-save" class="btn btn-primary">Save key</button>
+    </div>
+  </div>
+
+  <div id="lookup" class="hidden">
+    <div class="form-row">
+      <select id="lang" title="Language"></select>
+      <select id="version" title="Bible"></select>
+    </div>
+    <div class="form-row">
+      <input id="ref" type="text" placeholder="John 3:16-18, Psalm 23, 1 Cor 13" autocomplete="off">
+      <button type="button" id="go" class="btn btn-primary">Look up</button>
+    </div>
+    <div id="result" class="card hidden">
+      <h4 id="result-title"></h4>
+      <div id="verses"></div>
+      <div id="attribution"></div>
+      <div class="form-row">
+        <button type="button" id="add" class="btn btn-primary">Add to library &amp; schedule</button>
+      </div>
+    </div>
+    <div class="form-row"><button type="button" id="key-change" class="btn btn-sm">Change or remove my key</button></div>
+  </div>
+
+  <div id="status" class="status"></div>
+  <script src="__os/icons.js"></script>
+  <script src="__os/sdk.js"></script>
+  <script src="youversion.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
